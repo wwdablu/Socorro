@@ -9,6 +9,7 @@ import io.reactivex.Observable
 import io.reactivex.ObservableOnSubscribe
 import okhttp3.Protocol
 import okhttp3.Request
+import okhttp3.ResponseBody
 import retrofit2.Response
 import java.io.FileNotFoundException
 import java.io.InputStream
@@ -20,7 +21,7 @@ class Socorro<T> {
     fun mockWith(config:       SocorroConfig,
                  context:      Context,
                  castClass:    Class<T>,
-                 deserializer: JsonDeserializer<T>?) : Observable<Response<T>> {
+                 deserializer: JsonDeserializer<T>? = null) : Observable<Response<T>> {
 
         return Observable.create(ObservableOnSubscribe<Response<T>> { emitter ->
 
@@ -40,16 +41,17 @@ class Socorro<T> {
 
             }
 
-            if(iStream == null) {
-                emitter.onError(FileNotFoundException(getApplicableFilename(config)))
+            if(iStream == null && config.isSuccess()) {
+                emitter.onError(FileNotFoundException("File not found: " + getApplicableFilename(config)))
                 return@ObservableOnSubscribe
             }
 
-            val fileContent: java.lang.StringBuilder = FileStream.read(iStream)
-
-            if(config.isSuccess()) {
+            if(iStream != null && config.isSuccess()) {
+                val fileContent: java.lang.StringBuilder = FileStream.read(iStream)
                 emitter.onNext(createSuccessResponse(castClass, fileContent,
                     createGson(castClass, deserializer), config))
+            } else {
+                emitter.onNext(createErrorResponse(config))
             }
 
             emitter.onComplete()
@@ -70,7 +72,7 @@ class Socorro<T> {
         //If there is no explicit maping, then try to generate it
         if(filename == null || TextUtils.isEmpty(filename)) {
 
-            filename = config.getEndPoint().replace("/", "_", true)
+            filename = config.getEndPoint().replace("/", "_", true).plus("_")
                 .plus(config.getResponseCode().toString()).plus(".json")
         }
 
@@ -80,7 +82,7 @@ class Socorro<T> {
 
         filename = when(config.getFileContainer()) {
             SocorroConfig.SourceFileFrom.Raw -> {
-                filename.substring(0, filename.lastIndexOf(".", 0, true))
+                filename.substring(0, filename.length - 5)
             }
 
             else -> filename
@@ -111,6 +113,11 @@ class Socorro<T> {
                 .request(Request.Builder().url("https://socorro.mock/".plus(config.getEndPoint())).build())
                 .protocol(Protocol.HTTP_2)
                 .code(config.getResponseCode())
+                .message("")
                 .build())
+    }
+
+    private fun createErrorResponse(config: SocorroConfig) : Response<T> {
+        return Response.error(config.getResponseCode(), ResponseBody.create(null, ""))
     }
 }
