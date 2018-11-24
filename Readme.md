@@ -4,7 +4,13 @@ An android library allowing developers to use local API response to mock and tes
 **Usage**  
 You can download the library from Jitpack. Mention the following in the gradle file.  
 ```  
-implementation ''  
+allprojects {
+    repositories {
+        maven { url 'https://jitpack.io' }
+    }
+}  
+    
+implementation 'com.github.wwdablu:Socorro:1.0.0'  
 ```  
 
 **History**  
